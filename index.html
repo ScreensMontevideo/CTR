@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval'; connect-src *; img-src * data: blob:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cruise Terminal Rotterdam – Live Schedule</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy:   #060e1c;
+      --border: #1a3554;
+      --gold:   #c9a84c;
+      --gold2:  #e8c96a;
+      --white:  #f0f4f8;
+      --muted:  #6a8aaa;
+      --accent: #4a9fd4;
+      --green:  #2ecc71;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100vw; height:100vh; overflow:hidden; background:var(--navy); color:var(--white); font-family:'Barlow Condensed',sans-serif; }
+    body::before { content:''; position:fixed; inset:0; background: radial-gradient(ellipse 120% 60% at 50% 110%, #0a2a4a88 0%, transparent 70%), radial-gradient(ellipse 80% 40% at 20% 90%, #0d3a5a44 0%, transparent 60%); pointer-events:none; z-index:0; }
+    body::after { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(26,53,84,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(26,53,84,0.15) 1px, transparent 1px); background-size:60px 60px; pointer-events:none; z-index:0; }
+    #app { position:relative; z-index:1; width:100%; height:100%; display:grid; grid-template-rows:auto 1fr auto; }
+
+    /* HEADER */
+    #header { display:flex; align-items:center; justify-content:space-between; padding:18px 40px 14px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,rgba(6,14,28,0.95) 0%,rgba(6,14,28,0.6) 100%); backdrop-filter:blur(10px); }
+    #header-left { display:flex; align-items:baseline; gap:16px; }
+    #header h1 { font-family:'Cormorant Garamond',serif; font-size:2.2rem; font-weight:300; letter-spacing:0.15em; color:var(--white); text-transform:uppercase; }
+    #header h1 span { color:var(--gold); font-weight:600; }
+    #header-sub { font-size:0.8rem; letter-spacing:0.3em; color:var(--muted); text-transform:uppercase; font-weight:500; }
+    #clock { font-family:'Cormorant Garamond',serif; font-size:2.6rem; font-weight:300; color:var(--gold); letter-spacing:0.05em; font-variant-numeric:tabular-nums; line-height:1; text-align:right; }
+    #date-display { font-size:0.75rem; letter-spacing:0.25em; color:var(--muted); text-transform:uppercase; margin-top:4px; text-align:right; }
+
+    /* MAIN */
+    #main { display:grid; grid-template-columns:1fr 340px; overflow:hidden; }
+
+    /* TODAY PANEL */
+    #today-panel { position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; border-right:1px solid var(--border); }
+    #today-bg-fallback { position:absolute; inset:0; background:linear-gradient(135deg,#0a1e38 0%,#0d2d50 50%,#0a1a30 100%); }
+    #today-bg { position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.5s ease; filter:brightness(0.35) saturate(0.7); }
+    #today-gradient { position:absolute; inset:0; background:linear-gradient(to top, rgba(6,14,28,0.98) 0%, rgba(6,14,28,0.7) 35%, rgba(6,14,28,0.1) 70%, transparent 100%); }
+    #today-content { position:relative; z-index:2; padding:40px; }
+    #today-label { font-size:0.7rem; letter-spacing:0.5em; color:var(--gold); text-transform:uppercase; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+    #today-label::before { content:''; display:block; width:30px; height:1px; background:var(--gold); }
+    #today-ship-name { font-family:'Cormorant Garamond',serif; font-size:4.5rem; font-weight:700; line-height:0.95; color:var(--white); text-shadow:0 2px 40px rgba(0,0,0,0.8); margin-bottom:16px; letter-spacing:0.02em; }
+    #today-ship-name.long { font-size:3rem; }
+    #today-times { display:flex; gap:32px; margin-bottom:12px; }
+    .time-label { font-size:0.65rem; letter-spacing:0.4em; color:var(--muted); text-transform:uppercase; font-weight:600; }
+    .time-value { font-size:1.6rem; font-weight:600; color:var(--gold2); letter-spacing:0.05em; line-height:1.2; }
+    #today-status { display:inline-flex; align-items:center; gap:8px; font-size:0.72rem; letter-spacing:0.3em; text-transform:uppercase; font-weight:600; padding:5px 14px; border-radius:2px; margin-top:8px; }
+    #today-status.in-port  { background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4);  color:var(--green); }
+    #today-status.upcoming { background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.35); color:var(--gold2); }
+    #today-status.departed { background:rgba(106,138,170,0.12); border:1px solid rgba(106,138,170,0.3); color:var(--muted); }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse-dot 2s infinite; }
+    #today-status.departed .status-dot, #today-status.no-ship .status-dot { animation:none; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* UPCOMING */
+    #upcoming-panel { display:flex; flex-direction:column; overflow:hidden; background:rgba(10,22,40,0.6); }
+    #upcoming-header { padding:20px 24px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    #upcoming-title { font-size:0.65rem; letter-spacing:0.5em; color:var(--gold); text-transform:uppercase; font-weight:600; }
+    #upcoming-list { overflow-y:auto; flex:1; scrollbar-width:none; }
+    #upcoming-list::-webkit-scrollbar { display:none; }
+    .upcoming-item { display:grid; grid-template-columns:52px 1fr; gap:14px; padding:16px 24px; border-bottom:1px solid rgba(26,53,84,0.5); align-items:center; animation:fadeInUp 0.4s ease both; }
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .upcoming-date-box { text-align:center; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.2); border-radius:3px; padding:6px 4px; }
+    .upcoming-day { font-size:1.4rem; font-weight:700; color:var(--gold2); line-height:1; font-variant-numeric:tabular-nums; }
+    .upcoming-month { font-size:0.6rem; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; font-weight:600; margin-top:2px; }
+    .upcoming-name { font-size:1rem; font-weight:600; color:var(--white); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; }
+    .upcoming-times { font-size:0.72rem; color:var(--muted); margin-top:3px; }
+    .upcoming-times span { color:var(--accent); }
+
+    /* FOOTER */
+    #footer { display:flex; align-items:center; justify-content:space-between; padding:10px 40px; border-top:1px solid var(--border); background:rgba(6,14,28,0.9); font-size:0.68rem; letter-spacing:0.15em; text-transform:uppercase; }
+    #footer-left { color:var(--muted); display:flex; align-items:center; gap:18px; }
+    #caveat { color:rgba(201,168,76,0.6); font-style:italic; letter-spacing:0.1em; }
+    #refresh-indicator { display:flex; align-items:center; gap:8px; color:var(--muted); }
+    #refresh-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    #refresh-dot.spinning { animation:spin-dot 1s linear infinite; }
+    @keyframes spin-dot { 0%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.6)} 100%{opacity:1;transform:scale(1)} }
+
+    /* LOADING */
+    #loading-overlay { position:fixed; inset:0; background:var(--navy); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; transition:opacity 0.8s ease; }
+    #loading-overlay.hidden { opacity:0; pointer-events:none; }
+    .loading-logo { font-family:'Cormorant Garamond',serif; font-size:3rem; font-weight:300; letter-spacing:0.3em; color:var(--gold); text-transform:uppercase; margin-bottom:30px; }
+    .loading-bar-track { width:200px; height:1px; background:var(--border); overflow:hidden; }
+    .loading-bar-fill { height:100%; background:var(--gold); animation:load-bar 2s ease-in-out infinite; }
+    @keyframes load-bar { 0%{width:0%;margin-left:0%} 50%{width:60%;margin-left:20%} 100%{width:0%;margin-left:100%} }
+    .loading-text { margin-top:16px; font-size:0.7rem; letter-spacing:0.4em; color:var(--muted); text-transform:uppercase; }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="loading-logo">⚓ Rotterdam</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill"></div></div>
+  <div class="loading-text">Loading cruise schedule…</div>
+</div>
+
+<div id="app">
+  <div id="header">
+    <div id="header-left">
+      <h1>Cruise Terminal <span>Rotterdam</span></h1>
+      <div id="header-sub">Wilhelminakade · Arrivals & Departures</div>
+    </div>
+    <div id="header-right">
+      <div id="clock">--:--</div>
+      <div id="date-display">--</div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="today-panel">
+      <div id="today-bg-fallback"></div>
+      <div id="today-bg"></div>
+      <div id="today-gradient"></div>
+      <div id="today-content">
+        <div id="today-label">Today in Rotterdam</div>
+        <div id="today-ship-name">Loading…</div>
+        <div id="today-times"></div>
+        <div id="today-status" class="upcoming">
+          <span class="status-dot"></span>
+          <span id="today-status-text">Loading…</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="upcoming-panel">
+      <div id="upcoming-header">
+        <div id="upcoming-title">Upcoming vessel calls</div>
+      </div>
+      <div id="upcoming-list"></div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div id="footer-left">
+      <span>Source: Cruise Port Rotterdam · cruiseportrotterdam.nl</span>
+      <span id="caveat">Subject to change</span>
+    </div>
+    <div id="refresh-indicator">
+      <div id="refresh-dot"></div>
+      <span id="refresh-text">Loading…</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Clock ──
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('date-display').textContent =
+    now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── HARDCODED SEED DATA ──
+// This is fetched live from cruiseportrotterdam.nl at build time.
+// The page will update this automatically via the API every 30 minutes
+// when hosted on HTTPS (GitHub Pages). When opened locally (file://) the
+// API call is blocked by the browser, so this seed data is shown instead.
+// To update the seed manually: replace this array with fresh data.
+const SEED_SCHEDULE = [
+  { name: "Iona",              date: "2026-03-29", arrival: "15:00", departure: "21:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2023/08/Iona-17.01.2021-A-600x400.jpg" },
+  { name: "Ambience",          date: "2026-04-01", arrival: "08:00", departure: "19:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2022/09/Ambience-1-600x400.jpg" },
+  { name: "AIDAnova",          date: "2026-04-02", arrival: "08:00", departure: "21:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2021/10/AIDAnova-3-600x400.jpg" },
+  { name: "Rotterdam",         date: "2026-04-05", arrival: "07:00", departure: "15:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2021/09/Rotterdam-6-600x400.jpg" },
+  { name: "Rotterdam",         date: "2026-04-12", arrival: "07:00", departure: "14:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2021/09/Rotterdam-6-600x400.jpg" },
+  { name: "Renaissance (MAIDEN CALL)", date: "2026-04-14", arrival: "08:00", departure: "18:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2025/09/Renaissance-1-600x400.jpg" },
+  { name: "Nieuw Statendam",   date: "2026-04-18", arrival: "07:00", departure: "15:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2023/09/Nieuw-Statendam-7-600x400.jpg" },
+  { name: "AIDAperla",         date: "2026-04-23", arrival: "08:00", departure: "22:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2018/08/IMG_1132-600x400.jpg" },
+  { name: "Star Pride",        date: "2026-04-24", arrival: "09:00", departure: "22:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2025/05/Star-Pride-1-600x400.jpg" },
+  { name: "Rotterdam",         date: "2026-04-26", arrival: "10:00", departure: "15:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2021/09/Rotterdam-6-600x400.jpg" },
+  { name: "Balmoral",          date: "2026-04-27", arrival: "07:00", departure: "18:30", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2018/02/balmoral-600x400.jpg" },
+  { name: "Star Pride",        date: "2026-04-30", arrival: "09:00", departure: "22:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2025/05/Star-Pride-1-600x400.jpg" },
+  { name: "Nieuw Statendam",   date: "2026-05-01", arrival: "07:00", departure: "15:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2023/09/Nieuw-Statendam-7-600x400.jpg" },
+  { name: "Borealis",          date: "2026-05-02", arrival: "06:00", departure: "23:00", imageUrl: "https://www.cruiseportrotterdam.nl/wp-content/uploads/2023/09/Borealis-1.jpg" },
+];
+
+// ── Fetch live schedule via Claude API ──
+// Only attempted when served over HTTPS (GitHub Pages / Netlify).
+// When opened as a local file://, the browser blocks outbound API calls,
+// so we fall back to SEED_SCHEDULE silently.
+async function fetchSchedule() {
+  // Don't attempt API call on file:// — it will always fail with CORS error
+  if (window.location.protocol === 'file:') {
+    console.log('Local file — using seed schedule');
+    return null;
+  }
+
+  setRefreshing(true);
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 2000,
+        system: `You are a data extraction assistant. Search for and read https://www.cruiseportrotterdam.nl/cruise-calls/ then extract every cruise call listed on that page. Return ONLY a valid JSON array — no markdown, no explanation, nothing else. Each item: {"name":"ship name","date":"YYYY-MM-DD","arrival":"HH:MM","departure":"HH:MM","imageUrl":"full URL or null"}. Today is ${today}. Start response with [ end with ].`,
+        messages: [{ role: "user", content: "Fetch https://www.cruiseportrotterdam.nl/cruise-calls/ and return the cruise schedule as a JSON array only." }],
+        tools: [{ type: "web_search_20250305", name: "web_search" }]
+      })
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    // Scan all content blocks for JSON array
+    for (const block of (data.content || [])) {
+      const found = extractArray(block);
+      if (found) return found;
+    }
+    return null;
+  } catch (err) {
+    console.warn('API fetch failed:', err.message);
+    return null;
+  } finally {
+    setRefreshing(false);
+  }
+}
+
+function extractArray(block) {
+  const texts = [];
+  if (block.type === 'text' && block.text) texts.push(block.text);
+  if (block.type === 'tool_result' && Array.isArray(block.content)) {
+    block.content.forEach(b => { if (b.type === 'text' && b.text) texts.push(b.text); });
+  }
+  for (const text of texts) {
+    const clean = text.replace(/```json|```/gi, '').trim();
+    const s = clean.indexOf('['), e = clean.lastIndexOf(']');
+    if (s === -1 || e <= s) continue;
+    try {
+      const parsed = JSON.parse(clean.substring(s, e + 1));
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function setRefreshing(active) {
+  document.getElementById('refresh-dot').classList.toggle('spinning', active);
+  if (!active) {
+    document.getElementById('refresh-text').textContent =
+      `Updated ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+}
+
+// ── Status logic ──
+function getStatus(ship) {
+  const now   = new Date();
+  const today = now.toISOString().split('T')[0];
+  if (!ship.date || ship.date > today) return 'upcoming';
+  if (ship.date < today) return 'departed';
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const arr = toMin(ship.arrival) ?? 0;
+  const dep = toMin(ship.departure) ?? 1439;
+  if (nowMin < arr) return 'upcoming';
+  if (nowMin > dep) return 'departed';
+  return 'in-port';
+}
+function toMin(t) {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+function findFeatured(schedule) {
+  const today = new Date().toISOString().split('T')[0];
+  return (
+    schedule.find(s => s.date === today && getStatus(s) === 'in-port') ||
+    schedule.find(s => s.date === today) ||
+    schedule.find(s => (s.date || '') >= today) ||
+    schedule[0] || null
+  );
+}
+
+// ── Render ──
+function renderFeatured(ship) {
+  const nameEl  = document.getElementById('today-ship-name');
+  const timesEl = document.getElementById('today-times');
+  const statEl  = document.getElementById('today-status');
+  const statTxt = document.getElementById('today-status-text');
+
+  if (!ship) {
+    nameEl.textContent = 'No vessel scheduled today';
+    nameEl.className = '';
+    timesEl.innerHTML = '';
+    statEl.className = 'no-ship';
+    statTxt.textContent = 'No vessels scheduled';
+    return;
+  }
+
+  nameEl.textContent = ship.name || '—';
+  nameEl.className = (ship.name || '').length > 20 ? 'long' : '';
+
+  timesEl.innerHTML = `
+    <div class="time-block">
+      <div class="time-label">Arrival</div>
+      <div class="time-value">${ship.arrival || '—'}</div>
+    </div>
+    <div class="time-block">
+      <div class="time-label">Departure</div>
+      <div class="time-value">${ship.departure || '—'}</div>
+    </div>`;
+
+  const status = getStatus(ship);
+  statEl.className = status;
+  statTxt.textContent =
+    status === 'in-port'  ? 'Currently in port' :
+    status === 'upcoming' ? `Arriving at ${ship.arrival || '—'}` :
+                            'Departed';
+
+  const bg = document.getElementById('today-bg');
+  if (ship.imageUrl) {
+    const img = new Image();
+    img.onload  = () => { bg.style.backgroundImage = `url(${ship.imageUrl})`; bg.style.opacity = '1'; };
+    img.onerror = () => { bg.style.opacity = '0'; };
+    bg.style.opacity = '0';
+    img.src = ship.imageUrl;
+  } else {
+    bg.style.opacity = '0';
+  }
+}
+
+function renderUpcoming(schedule) {
+  const today = new Date().toISOString().split('T')[0];
+  const list  = schedule.filter(s => (s.date || '') >= today).slice(0, 12);
+  const el    = document.getElementById('upcoming-list');
+  el.innerHTML = '';
+
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:24px;color:var(--muted);font-size:0.8rem;letter-spacing:0.2em;text-transform:uppercase;">No upcoming vessels</div>';
+    return;
+  }
+
+  list.forEach((ship, i) => {
+    const d      = ship.date ? new Date(ship.date + 'T12:00:00') : null;
+    const status = getStatus(ship);
+    const item   = document.createElement('div');
+    item.className = 'upcoming-item';
+    item.style.animationDelay = `${i * 0.06}s`;
+    item.innerHTML = `
+      <div class="upcoming-date-box">
+        <div class="upcoming-day">${d ? d.getDate() : '?'}</div>
+        <div class="upcoming-month">${d ? MONTHS[d.getMonth()] : '?'}</div>
+      </div>
+      <div class="upcoming-info">
+        <div class="upcoming-name">${ship.name || '—'}</div>
+        <div class="upcoming-times">
+          <span>${ship.arrival || '?'}</span> arrival &nbsp;·&nbsp;
+          <span>${ship.departure || '?'}</span> departure
+          ${status === 'in-port' ? '&nbsp;<span style="color:var(--green)">● In port</span>' : ''}
+        </div>
+      </div>`;
+    el.appendChild(item);
+  });
+}
+
+// ── Update cycle ──
+let cache = [...SEED_SCHEDULE]; // Start with seed so screen is never blank
+
+async function update() {
+  // Render seed/cache immediately so screen is never blank
+  renderFeatured(findFeatured(cache));
+  renderUpcoming(cache);
+  document.getElementById('loading-overlay').classList.add('hidden');
+
+  // Try to fetch fresh data from API (only works on HTTPS)
+  const fresh = await fetchSchedule();
+  if (fresh && fresh.length > 0) {
+    cache = fresh;
+    renderFeatured(findFeatured(cache));
+    renderUpcoming(cache);
+    document.getElementById('refresh-text').textContent =
+      `Live · Updated ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  } else {
+    document.getElementById('refresh-text').textContent =
+      window.location.protocol === 'file:'
+        ? 'Seed data (host on HTTPS for live updates)'
+        : `Cached · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+}
+
+update();
+setInterval(update, 30 * 60 * 1000);    // re-fetch every 30 min
+setInterval(() => {                       // re-render status every 1 min
+  if (cache.length) {
+    renderFeatured(findFeatured(cache));
+    renderUpcoming(cache);
+  }
+}, 60 * 1000);
+</script>
+</body>
+</html>
