@@ -405,7 +405,7 @@
 
     <!-- TODAY -->
     <div id="today">
-      <div id="today-eyebrow">Today in Rotterdam</div>
+      <div id="today-eyebrow">Next Cruise Call</div>
       <div id="today-ship-name">—</div>
       <div id="ship-photo-wrap">
         <img id="ship-photo" src="" alt="" />
@@ -510,15 +510,17 @@ function findFeatured(schedule) {
 
 // ── Render today ──
 function renderToday(ship) {
-  const nameEl   = document.getElementById('today-ship-name');
-  const arrEl    = document.getElementById('t-arr');
-  const depEl    = document.getElementById('t-dep');
-  const badge    = document.getElementById('status-badge');
-  const statText = document.getElementById('status-text');
+  const nameEl    = document.getElementById('today-ship-name');
+  const arrEl     = document.getElementById('t-arr');
+  const depEl     = document.getElementById('t-dep');
+  const badge     = document.getElementById('status-badge');
+  const statText  = document.getElementById('status-text');
   const photoWrap = document.getElementById('ship-photo-wrap');
-  const photo    = document.getElementById('ship-photo');
+  const photo     = document.getElementById('ship-photo');
+  const eyebrow   = document.getElementById('today-eyebrow');
 
   if (!ship) {
+    eyebrow.textContent = 'Next Cruise Call';
     nameEl.textContent = 'No vessel today';
     nameEl.className = '';
     arrEl.textContent = '—';
@@ -527,6 +529,16 @@ function renderToday(ship) {
     statText.textContent = 'No vessels scheduled';
     photoWrap.style.display = 'none';
     return;
+  }
+
+  // Set eyebrow based on whether ship is today or in the future
+  const today = new Date().toISOString().split('T')[0];
+  if (ship.date === today) {
+    eyebrow.textContent = 'Today in Rotterdam';
+  } else {
+    const d = ship.date ? new Date(ship.date + 'T12:00:00') : null;
+    const dateStr = d ? d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long' }) : '';
+    eyebrow.textContent = `Next Cruise Call · ${dateStr}`;
   }
 
   nameEl.textContent = ship.name || '—';
